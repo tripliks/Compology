@@ -1,10 +1,5 @@
 #include "Timer.h"
 
-//#include <DistanceGP2Y0A21YK.h>
-
-#include <I2C.h>
-#include <MMA8453_n0m1.h>
-
 #include <DHT22.h>
 #include <stdio.h>
 
@@ -14,18 +9,12 @@
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(7,8);
 
-// Initialize accelerometer and variables
-MMA8453_n0m1 accel;
-
 // Initialize ultrasonic and variables
 #include "Wire.h"
 #define SensorAddress byte(0x70)
 #define RangeCommand byte(0x51)
 #define ChangeAddressCommand1 byte(0xAA)
 #define ChangeAddressCommand2 byte(0xA5)
-
-// Initialize IR sensor
-//DistanceGP2Y0A21YK infrared;
 
 // Initialize hum and temp sensor and variables
 #define DHT22_PIN 5
@@ -43,10 +32,8 @@ float sendDataPeriod = 60000;
 // Data variables
 const byte id = 2;
 int us = 120;
-int ir = 121;
 int t1 = 20;
 int h1 = 20;
-int t2 = 25;
 int b = 800;
 
 char string2charBuffer[200];
@@ -64,9 +51,7 @@ void setup()
   Serial.println("Setup BEGIN");
 
   initUltrasonic();
-//  initInfrared();
   initHumidityAndTemperature();
-//  initAcceleration();
   initBattery();
 
   sampleEvent = t.every(sendDataPeriod, sample);
@@ -93,21 +78,9 @@ void initUltrasonic()
   delay(100);
 }
 
-void initInfrared()
-{
-//  infrared.begin(A2);
-}
-
 void initHumidityAndTemperature()
 {
 
-}
-
-void initAcceleration()
-{
-  // accel.setI2CAddr(0x1D); //change your device address if necessary, default is 0x1C
-  // accel.dataMode(true, 2); //enable highRes 10bit, 2g range [2g,4g,8g]
-  // accel.motionMode(8,true,true,true,false,2);  // Arduino interrupt pin 2
 }
 
 void initBattery()
@@ -126,12 +99,8 @@ void sample()
   Serial.println();
 
   sampleUltrasonic();
-  
-//  sampleInfrared();
 
   sampleHumidityAndTemperature();
-
-//  sampleAcceleration();
 
   sampleBattery();
 
@@ -170,18 +139,6 @@ void sampleUltrasonic()
 //  us = sendUS;
   
   Serial.println("Ultrasonic END");
-  Serial.println();
-}
-
-
-void sampleInfrared()
-{
-  Serial.println("Infrared BEGIN");
-  
-//  ir = infrared.getDistanceRaw();
-//  Serial.print("Infrared analog reading "); Serial.println(ir);
-  
-  Serial.println("Infrared END");
   Serial.println();
 }
 
@@ -228,15 +185,6 @@ void sampleHumidityAndTemperature()
 }
 
 
-void sampleAcceleration()
-{
-  Serial.println("Acceleration BEGIN");
-  // accel.update();
-  // if (accel.motion()) Serial.println("Motion!");
-  Serial.println("Acceleration END");
-  Serial.println();
-}
-
 void sampleBattery()
 {
   Serial.println("Battery BEGIN");
@@ -270,14 +218,10 @@ void sendData()
   postData += id;
   postData += "&us=";
   postData += us;
-  postData += "&ir=";
-  postData += ir;
   postData += "&t1=";
   postData += t1;
   postData += "&h1=";
   postData += h1;
-  postData += "&t2=";
-  postData += t2;
   postData += "&b=";
   postData += b;
   postData += "&\"\r";

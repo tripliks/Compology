@@ -56,7 +56,7 @@ void attemptSendHTTPdata()
 	// Open data bearer
 	modemSerial.write("AT+SAPBR=1,1\r");
 	// Make sure it didn't time out
-	if (finder.find("OK"))	Serial.println("OK not found!");
+	findOK();
 
 	// Terminate existing HTTP session??
 	modemSerial.write("AT+HTTPTERM\r");
@@ -65,7 +65,7 @@ void attemptSendHTTPdata()
 
 	// Start HTTP session
 	modemSerial.write("AT+HTTPINIT\r");
-	if (!finder.find("OK"))	Serial.println("OK not found!");
+	findOK();
 
 	// Create HTTP GET string - OPTIMIZE, maybe with replace string?
 	String postData = "AT+HTTPPARA=\"URL\",\"http://compology.herokuapp.com/receive?id=";
@@ -86,16 +86,15 @@ void attemptSendHTTPdata()
 
 	modemSerial.write(string2charBuffer);
 	Serial.println(string2charBuffer);
-	// Look for OK response
-	if (!finder.find("OK"))	Serial.println("OK not found!");
+	findOK();
 
 	// Set HTTP bearer
 	modemSerial.write("AT+HTTPPARA=\"CID\",1\r");
-	if (!finder.find("OK"))	Serial.println("OK not found!");
+	findOK();
 
 	// Initiate GET request
 	modemSerial.write("AT+HTTPACTION=0\r");
-	if (!finder.find("OK"))	Serial.println("OK not found!");
+	findOK();
 
 	// Look for HTTP GET 200 reponse
 	// +HTTPACTION:#,#(HTTP CODE),#(BYTES?)
@@ -117,14 +116,7 @@ boolean isConnected()
 	long response = finder.getValue(',');
 
 	// Make sure it didn't time out
-	if (finder.find("OK"))
-	{
-		// Serial.println("OK found!");
-	}
-	else // signals that modem timed out or something wrong with comm to it
-	{
-		Serial.println("OK not found!");
-	}
+	findOK();
 
 	if (response==1) return true;
 	else return false;
@@ -159,6 +151,10 @@ void toggleModemPower()
 }
 
 
+void findOK()
+{
+	if (!finder.find("OK"))	Serial.println("OK not found!");
+}
 
 
 void twoWayTalk_modemToSerial()

@@ -1,10 +1,5 @@
 #include "Timer.h"
 
-#include <DistanceGP2Y0A21YK.h>
-
-#include <I2C.h>
-#include <MMA8453_n0m1.h>
-
 #include <DHT22.h>
 #include <stdio.h>
 
@@ -14,15 +9,9 @@
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(7,8);
 
-// Initialize accelerometer and variables
-MMA8453_n0m1 accel;
-
 // Initialize ultrasonic and variables
 SoftwareSerial ultrasonic(10, 12, true); // RX, TX
-byte samplePin = 11;
-
-// Initialize IR sensor
-DistanceGP2Y0A21YK infrared;
+#define samplePin 11
 
 // Initialize hum and temp sensor and variables
 #define DHT22_PIN 5
@@ -38,32 +27,29 @@ float sendDataPeriod = 60000;
 
 
 // Data variables
-const byte id = 1;
+#define id 1
 int us = 120;
-int ir = 121;
 int t1 = 20;
 int h1 = 20;
-int t2 = 25;
 int b = 800;
 
-char string2charBuffer[200];
+#define bufferSize 100
+char string2charBuffer[bufferSize];
 
 
 
 void setup()
 {
-  // Initialize serial debug output
+  // Initialize serial debug and modem ports
   Serial.begin(19200);
-
   modemSerial.begin(9600);
   delay(500);
 
   Serial.println("Setup BEGIN");
 
+  // Initialize sensors
   initUltrasonic();
-  initInfrared();
   initHumidityAndTemperature();
-  initAcceleration();
   initBattery();
 
   sampleEvent = t.every(sendDataPeriod, sample);
@@ -78,6 +64,7 @@ void setup()
 
 void loop()
 {
+  // Run timer update routine, which runs samples after sendDataPeriod
   t.update();
 }
 
@@ -92,21 +79,9 @@ void initUltrasonic()
   delay(100);
 }
 
-void initInfrared()
-{
-  infrared.begin(A2);
-}
-
 void initHumidityAndTemperature()
 {
 
-}
-
-void initAcceleration()
-{
-  // accel.setI2CAddr(0x1D); //change your device address if necessary, default is 0x1C
-  // accel.dataMode(true, 2); //enable highRes 10bit, 2g range [2g,4g,8g]
-  // accel.motionMode(8,true,true,true,false,2);  // Arduino interrupt pin 2
 }
 
 void initBattery()
@@ -125,12 +100,8 @@ void sample()
   Serial.println();
 
   sampleUltrasonic();
-  
-  sampleInfrared();
 
   sampleHumidityAndTemperature();
-
-  sampleAcceleration();
 
   sampleBattery();
 
@@ -145,7 +116,7 @@ void sampleUltrasonic()
 {
   Serial.println("Ultrasonic BEGIN");
   byte numberSamples = 6;
-  String bigBuffer[numberSamples];
+  String bigBuffer[numberSamples];  // CAN I USE SOMETHING OTHER THAN STRING?
 
   // Take numberSamples and put into bigBuffer
   for (byte sampleNum = 0; sampleNum < numberSamples; sampleNum++)
@@ -168,12 +139,12 @@ void sampleUltrasonic()
   }
 
   // Store value for sending to server
+  // FIX THIS / MAKE IT SHORTER
   String sendUS = "";
   for (int i=1; i<bigBuffer[numberSamples-1].length(); i++) {
     sendUS += bigBuffer[numberSamples-1][i];
   }
   us = sendUS.toInt();
-//  Serial.print("Ultrasonic sends "); Serial.println(sendUS.toInt());
 
   // Print results to serial
   for (byte i=0; i<numberSamples; i++)
@@ -181,18 +152,6 @@ void sampleUltrasonic()
     Serial.println(bigBuffer[i]);
   }
   Serial.println("Ultrasonic END");
-  Serial.println();
-}
-
-
-void sampleInfrared()
-{
-  Serial.println("Infrared BEGIN");
-  
-  ir = infrared.getDistanceRaw();
-  Serial.print("Infrared analog reading "); Serial.println(ir);
-  
-  Serial.println("Infrared END");
   Serial.println();
 }
 
@@ -211,7 +170,7 @@ void sampleHumidityAndTemperature()
       Serial.print("Temp "); Serial.print(t1); Serial.println(" /10 C");
       Serial.print("Hum "); Serial.print(h1); Serial.println(" /10 %");
       break;
-    case DHT_ERROR_CHECKSUM:
+    /*case DHT_ERROR_CHECKSUM:
       Serial.print("check sum error ");
       break;
     case DHT_BUS_HUNG:
@@ -231,7 +190,7 @@ void sampleHumidityAndTemperature()
       break;
     case DHT_ERROR_TOOQUICK:
       Serial.println("Polled to quick ");
-      break;
+      break;*/
   }
 
   Serial.println("Hum and temp END");
@@ -239,21 +198,12 @@ void sampleHumidityAndTemperature()
 }
 
 
-void sampleAcceleration()
-{
-  Serial.println("Acceleration BEGIN");
-  // accel.update();
-  // if (accel.motion()) Serial.println("Motion!");
-  Serial.println("Acceleration END");
-  Serial.println();
-}
-
 void sampleBattery()
 {
   Serial.println("Battery BEGIN");
 
   int batteryReading = analogRead(batteryPin);
-  float batteryVoltage = float(batteryReading)*10.0/1023.0;
+  float batteryVoltage = float(batteryReading)*10.0/1023.0 + 0.7;
   Serial.print(batteryVoltage); Serial.println(" Volts");
 
   // Store value for sending to server
@@ -262,6 +212,7 @@ void sampleBattery()
   Serial.println("Battery END");
   Serial.println();
 }
+
 
 void sendData()
 {
@@ -280,19 +231,15 @@ void sendData()
   postData += id;
   postData += "&us=";
   postData += us;
-  postData += "&ir=";
-  postData += ir;
   postData += "&t1=";
   postData += t1;
   postData += "&h1=";
   postData += h1;
-  postData += "&t2=";
-  postData += t2;
   postData += "&b=";
   postData += b;
   postData += "&\"\r";
 
-  postData.toCharArray(string2charBuffer, 200);
+  postData.toCharArray(string2charBuffer, bufferSize);
 
   modemSerial.write(string2charBuffer);
   Serial.println(string2charBuffer);

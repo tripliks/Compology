@@ -1,0 +1,15 @@
+{
+    "arduino_root": "/Applications/Arduino.app", 
+    "baudrate": "19200", 
+    "board": "Arduino Uno", 
+    "full_compilation": false, 
+    "global_setting": true, 
+    "language": "English", 
+    "platform": "Arduino AVR Boards", 
+    "programmer": "AVR ISP", 
+    "serial_port": "/dev/cu.Bluetooth-PDA-Sync", 
+    "show_arduino_menu": false, 
+    "show_serial_monitor_menu": false, 
+    "sketchbook_root": "/Users/brucevest/Documents/Arduino", 
+    "verbose_compilation": false
+}
