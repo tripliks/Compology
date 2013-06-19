@@ -4,10 +4,16 @@
 #include <stdio.h>
 
 #include <SoftwareSerial.h>
+#include <TextFinder.h>
 
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(7,8);
+#define powerPin 9
+
+// Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
+#define modemSerialTimeout 5
+TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
 SoftwareSerial ultrasonic(10, 12, true); // RX, TX
@@ -23,7 +29,9 @@ byte batteryPin = A0;
 
 Timer t;
 byte sampleEvent;
-float sendDataPeriod = 60000;
+#define sendDataPeriod 5000
+
+#define timeConnectTimeout 5000
 
 
 // Data variables
@@ -218,15 +226,53 @@ void sendData()
 {
   Serial.println("Transmission BEGIN");
 
+  // Check power, power up if necessary
+  powerUp();
 
+  // Check connection, connect if necessary, limit time of attempts
+  long timeConnectAttempt = millis();
+  while (!isConnected() && ( millis() - timeConnectAttempt ) < timeConnectTimeout) {}
+
+  // Send data if possible
+  if (isConnected())
+  {
+    // Send HTTP data, wait for 200 response
+    attemptSendHTTPdata();
+  }
+  else  // Didn't connect
+  {
+    Serial.println("Couldn't connect");
+  }
+
+  // Power down modem
+  powerDown();
+
+  Serial.println("Transmission END");
+  Serial.println();
+}
+
+
+
+
+void attemptSendHTTPdata()
+{
+  Serial.println("attemptSendHTTPdata()");
+
+  // Open data bearer
   modemSerial.write("AT+SAPBR=1,1\r");
-  delay(5000);
+  // Make sure it didn't time out
+  findOK();
 
+  // Terminate existing HTTP session??
   modemSerial.write("AT+HTTPTERM\r");
-  delay(1000);
-  modemSerial.write("AT+HTTPINIT\r");
+  // Responds with OK if already started, ERROR if none started yet
   delay(1000);
 
+  // Start HTTP session
+  modemSerial.write("AT+HTTPINIT\r");
+  findOK();
+
+  // Create HTTP GET string - OPTIMIZE, maybe with replace string?
   String postData = "AT+HTTPPARA=\"URL\",\"http://compology.herokuapp.com/receive?id=";
   postData += id;
   postData += "&us=";
@@ -243,14 +289,76 @@ void sendData()
 
   modemSerial.write(string2charBuffer);
   Serial.println(string2charBuffer);
-  delay(1000);
+  findOK();
 
+  // Set HTTP bearer
   modemSerial.write("AT+HTTPPARA=\"CID\",1\r");
-  delay(1000);
+  findOK();
 
+  // Initiate GET request
   modemSerial.write("AT+HTTPACTION=0\r");
-  delay(1000);
+  findOK();
 
-  Serial.println("Transmission END");
-  Serial.println();
+  // Look for HTTP GET 200 reponse
+  // +HTTPACTION:#,#(HTTP CODE),#(BYTES?)
+  finder.find("+HTTPACTION:0,");
+  long HTTPcode = finder.getValue();
+  Serial.print("HTTPcode "); Serial.println(HTTPcode);
+  // return true;
 }
+
+
+boolean isConnected()
+{
+  Serial.println("isConnected()");
+  modemSerial.write("AT+CREG?\r\n");
+
+  finder.find("+CREG: ");  // Set CREG=1 to return unsolicited network registration code
+
+  // Get network status, could be values 0, 2 (not connected) OR 1 (connected)
+  long response = finder.getValue(',');
+
+  // Make sure it didn't time out
+  findOK();
+
+  if (response==1) return true;
+  else return false;
+}
+
+
+void powerUp()
+{
+  Serial.println("powerUp()");
+  toggleModemPower();
+  delay(5000);
+  // Call Ready can take 10 seconds
+  if (finder.find("Call Ready"))
+  {
+    // Successfully turned on
+    Serial.println("Modem on and responsive");
+  }
+  else
+  {
+    Serial.println("No response from modem");
+  }
+}
+
+
+void powerDown()
+{
+  toggleModemPower();
+}
+
+void toggleModemPower()
+{
+  digitalWrite(9,HIGH);
+  delay(1500);
+  digitalWrite(9,LOW);
+}
+
+
+void findOK()
+{
+  if (!finder.find("OK")) Serial.println("OK not found!");
+}
+
