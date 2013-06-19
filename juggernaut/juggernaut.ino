@@ -1,10 +1,10 @@
-#include "Timer.h"
-
 #include <DHT22.h>
 #include <stdio.h>
 
 #include <SoftwareSerial.h>
 #include <TextFinder.h>
+
+#include "LowPower.h"
 
 
 // Initialize comm to GSM shield
@@ -26,11 +26,6 @@ DHT22 myDHT22(DHT22_PIN);
 // Initialize battery
 byte batteryPin = A0;
 
-
-Timer t;
-byte sampleEvent;
-#define sendDataPeriod 5000
-
 #define timeConnectTimeout 5000
 
 
@@ -43,6 +38,7 @@ int b = 800;
 
 #define bufferSize 100
 char string2charBuffer[bufferSize];
+
 
 
 
@@ -60,8 +56,6 @@ void setup()
   initHumidityAndTemperature();
   initBattery();
 
-  sampleEvent = t.every(sendDataPeriod, sample);
-
   Serial.println("Setup END");
   
   // First sample for tank calibration
@@ -73,12 +67,22 @@ void setup()
 void loop()
 {
   // Run timer update routine, which runs samples after sendDataPeriod
-  t.update();
+  sample();
+
+  // Sleep for 30 seconds
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
 }
 
 
 
 
+//                            //
+//  INITIALIZATION FUNCTIONS  //
+//                            //
 void initUltrasonic()
 {
   pinMode(samplePin, OUTPUT);
@@ -100,6 +104,9 @@ void initBattery()
 
 
 
+//                            //
+//       SAMPLE FUNCTIONS     //
+//                            //
 void sample()
 {
   Serial.println();
@@ -254,6 +261,9 @@ void sendData()
 
 
 
+//                            //
+//       MODEM FUNCTIONS      //
+//                            //
 void attemptSendHTTPdata()
 {
   Serial.println("attemptSendHTTPdata()");
