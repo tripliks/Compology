@@ -1,0 +1,17 @@
+void setup()
+{
+  byte ID = 1;
+  int levelUS = 120;
+  int levelIR = 121;
+  int temp1 = 20;
+  int hum1 = 20;
+  int temp2 = 25;
+  int battery = 800;
+
+  String postData = "ID=" +ID+ "?levelUS=" +levelUS+ "?levelIR=" +levelIR+ "?temp1=" +temp1+ "?hum1=" +hum1 + "?temp2=" + temp2 + "?battery=" + battery;
+}
+
+void loop()
+{
+
+}
