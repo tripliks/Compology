@@ -12,7 +12,7 @@ SoftwareSerial modemSerial(7,8);
 #define powerPin 9
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
-#define modemSerialTimeout 5
+#define modemSerialTimeout 10
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
@@ -45,8 +45,8 @@ char string2charBuffer[bufferSize];
 void setup()
 {
   // Initialize serial debug and modem ports
-  Serial.begin(19200);
   modemSerial.begin(9600);
+  Serial.begin(19200);
   delay(500);
 
   Serial.println("Setup BEGIN");
@@ -57,10 +57,6 @@ void setup()
   initBattery();
 
   Serial.println("Setup END");
-  
-  // First sample for tank calibration
-  delay(1000);
-  sampleUltrasonic();
 }
 
 
@@ -69,12 +65,15 @@ void loop()
   // Run timer update routine, which runs samples after sendDataPeriod
   sample();
 
-  // Sleep for 30 seconds
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
-  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+  // Sleep for 60 seconds
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 8s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 16s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 24s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 32s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 40s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 48s
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 56s
+  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF); // 60s
 }
 
 
@@ -130,6 +129,10 @@ void sample()
 void sampleUltrasonic()
 {
   Serial.println("Ultrasonic BEGIN");
+
+  // Switch to ultrasonic within Software Serial
+  ultrasonic.listen();
+
   byte numberSamples = 6;
   String bigBuffer[numberSamples];  // CAN I USE SOMETHING OTHER THAN STRING?
 
@@ -233,26 +236,34 @@ void sendData()
 {
   Serial.println("Transmission BEGIN");
 
+  // Switch to modem within SoftwareSerial
+  modemSerial.listen();
+
   // Check power, power up if necessary
-  powerUp();
-
-  // Check connection, connect if necessary, limit time of attempts
-  long timeConnectAttempt = millis();
-  while (!isConnected() && ( millis() - timeConnectAttempt ) < timeConnectTimeout) {}
-
-  // Send data if possible
-  if (isConnected())
+  if ( powerUp() )
   {
-    // Send HTTP data, wait for 200 response
-    attemptSendHTTPdata();
-  }
-  else  // Didn't connect
-  {
-    Serial.println("Couldn't connect");
-  }
+    // Check connection, connect if necessary, limit time of attempts
+    long timeConnectAttempt = millis();
+    while (!isConnected() && ( millis() - timeConnectAttempt ) < timeConnectTimeout) {delay(1000);}
 
-  // Power down modem
-  powerDown();
+    // Send data if possible
+    if (isConnected())
+    {
+      // Send HTTP data, wait for 200 response
+      attemptSendHTTPdata();
+    }
+    else  // Didn't connect
+    {
+      Serial.println("Couldn't connect");
+    }
+
+    // Power down modem
+    powerDown();
+  }
+  else
+  {
+    Serial.println("Couldn't powerUp modem");
+  }
 
   Serial.println("Transmission END");
   Serial.println();
@@ -336,26 +347,28 @@ boolean isConnected()
 }
 
 
-void powerUp()
+boolean powerUp()
 {
   Serial.println("powerUp()");
   toggleModemPower();
-  delay(5000);
+  finder.find(".........");
   // Call Ready can take 10 seconds
   if (finder.find("Call Ready"))
   {
     // Successfully turned on
     Serial.println("Modem on and responsive");
+    return true;
   }
   else
   {
     Serial.println("No response from modem");
+    return false;
   }
 }
 
-
 void powerDown()
 {
+  Serial.println("powerDown()");
   toggleModemPower();
 }
 

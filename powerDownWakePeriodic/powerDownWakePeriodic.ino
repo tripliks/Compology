@@ -20,8 +20,8 @@ void loop()
     LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
 //    LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
 //    Serial.print("Time after loop "); Serial.println(millis()-time);
-//    Serial.println("Sleep interrupt");
-//    delay(100);
+   Serial.println("Sleep interrupt");
+   delay(3000);
     
     // Do something here
     // Example: Read sensor, data logging, data transmission.
