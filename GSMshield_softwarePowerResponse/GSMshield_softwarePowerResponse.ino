@@ -1,8 +1,8 @@
 #include <SoftwareSerial.h>
 #include <TextFinder.h>
  
-SoftwareSerial modemSerial(7, 8);
-#define powerPin 9
+SoftwareSerial modemSerial(4, 3);
+#define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
 #define modemSerialTimeout 10

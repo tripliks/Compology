@@ -4,39 +4,43 @@
 #include <SoftwareSerial.h>
 #include <TextFinder.h>
 
-#include "LowPower.h"
+#include <LowPower.h>
 
 
 // Initialize comm to GSM shield
-SoftwareSerial modemSerial(7,8);
-#define powerPin 9
+SoftwareSerial modemSerial(4,3);
+#define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
 #define modemSerialTimeout 10
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
-SoftwareSerial ultrasonic(10, 12, true); // RX, TX
-#define samplePin 11
+SoftwareSerial ultrasonic(11, 13, true); // RX, TX
+#define samplePin 10
 
 // Initialize hum and temp sensor and variables
-#define DHT22_PIN 5
+#define DHT22_PIN 12
 DHT22 myDHT22(DHT22_PIN);
 
 // Initialize battery
 byte batteryPin = A0;
 
-#define timeConnectTimeout 5000
+#define timeConnectTimeout 10000
+#define timeAttachTimeout 10000
 
 
 // Data variables
-#define id 1
+#define id 3
 int us = 120;
+int ir = 0;
 int t1 = 20;
 int h1 = 20;
+int t2 = 0;
+int h2 = 0;
 int b = 800;
 
-#define bufferSize 100
+#define bufferSize 150
 char string2charBuffer[bufferSize];
 
 
@@ -56,6 +60,7 @@ void setup()
   initHumidityAndTemperature();
   initBattery();
 
+  delay(3000);
   Serial.println("Setup END");
 }
 
@@ -64,8 +69,13 @@ void loop()
 {
   // Run timer update routine, which runs samples after sendDataPeriod
   sample();
+  sendData();
+  delay(2000);
 
   // Sleep for 60 seconds
+
+  Serial.println("Going to sleep");
+  delay(1000);
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 8s
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 16s
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 24s
@@ -74,6 +84,7 @@ void loop()
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 48s
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 56s
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF); // 60s
+  Serial.println("Waking up");
 }
 
 
@@ -118,8 +129,6 @@ void sample()
   sampleHumidityAndTemperature();
 
   sampleBattery();
-
-  sendData();
 
   Serial.println("Exit sample loop");
   Serial.println();
@@ -188,7 +197,7 @@ void sampleHumidityAndTemperature()
       Serial.print("Temp "); Serial.print(t1); Serial.println(" /10 C");
       Serial.print("Hum "); Serial.print(h1); Serial.println(" /10 %");
       break;
-    /*case DHT_ERROR_CHECKSUM:
+    case DHT_ERROR_CHECKSUM:
       Serial.print("check sum error ");
       break;
     case DHT_BUS_HUNG:
@@ -208,7 +217,7 @@ void sampleHumidityAndTemperature()
       break;
     case DHT_ERROR_TOOQUICK:
       Serial.println("Polled to quick ");
-      break;*/
+      break;
   }
 
   Serial.println("Hum and temp END");
@@ -249,8 +258,21 @@ void sendData()
     // Send data if possible
     if (isConnected())
     {
-      // Send HTTP data, wait for 200 response
-      attemptSendHTTPdata();
+      // Check connection, connect if necessary, limit time of attempts
+      long timeAttachAttempt = millis();
+      while (!isAttached() && ( millis() - timeAttachAttempt ) < timeAttachTimeout) {delay(1000);}
+
+      if (isAttached())
+      {
+        // Send HTTP data, wait for 200 response
+        attemptSendHTTPdata();
+      }
+      else // Didn't attach
+      {
+        Serial.println("Failed to attach");
+      }
+
+
     }
     else  // Didn't connect
     {
@@ -279,15 +301,25 @@ void attemptSendHTTPdata()
 {
   Serial.println("attemptSendHTTPdata()");
 
-  // Open data bearer
-  modemSerial.write("AT+SAPBR=1,1\r");
-  // Make sure it didn't time out
+  // Check bearer
+  modemSerial.write("AT+SAPBR=2,1\r");
+  finder.find("+SAPBR: 1,");
+  long bearerStatus = finder.getValue();
+  Serial.println(bearerStatus);
   findOK();
-
-  // Terminate existing HTTP session??
-  modemSerial.write("AT+HTTPTERM\r");
-  // Responds with OK if already started, ERROR if none started yet
-  delay(1000);
+  if ( bearerStatus == 3 )
+  {
+    // Open data bearer
+    modemSerial.write("AT+SAPBR=1,1\r");
+    // Make sure it didn't time out
+    findOK();
+  }
+  else if ( bearerStatus == 1 ) {}
+  else
+  {
+    Serial.println("Weird bearer status, breaking send attempt");
+    return;
+  }
 
   // Start HTTP session
   modemSerial.write("AT+HTTPINIT\r");
@@ -298,10 +330,16 @@ void attemptSendHTTPdata()
   postData += id;
   postData += "&us=";
   postData += us;
+  postData += "&ir=";
+  postData += ir;
   postData += "&t1=";
   postData += t1;
   postData += "&h1=";
   postData += h1;
+  postData += "&h2=";
+  postData += h2;
+  postData += "&t2=";
+  postData += t2;
   postData += "&b=";
   postData += b;
   postData += "&\"\r";
@@ -347,6 +385,18 @@ boolean isConnected()
 }
 
 
+boolean isAttached()
+{
+  // Check on network attachment
+  modemSerial.write("AT+CGATT?\r\n");
+  finder.find("+CGATT: ");
+  long attachStatus = finder.getValue();
+  findOK();
+  if ( attachStatus == 1 ) return 1;
+  else return 0;
+}
+
+
 boolean powerUp()
 {
   Serial.println("powerUp()");
@@ -370,13 +420,14 @@ void powerDown()
 {
   Serial.println("powerDown()");
   toggleModemPower();
+  delay(1000);
 }
 
 void toggleModemPower()
 {
-  digitalWrite(9,HIGH);
+  digitalWrite(powerPin,HIGH);
   delay(1500);
-  digitalWrite(9,LOW);
+  digitalWrite(powerPin,LOW);
 }
 
 
