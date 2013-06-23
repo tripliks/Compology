@@ -12,7 +12,7 @@ SoftwareSerial modemSerial(4,3);
 #define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
-#define modemSerialTimeout 10
+#define modemSerialTimeout 15
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
@@ -32,16 +32,20 @@ byte batteryPin = A0;
 
 // Data variables
 #define id 3
-int us = 120;
-int ir = 0;
-int t1 = 20;
-int h1 = 20;
-int t2 = 0;
-int h2 = 0;
-int b = 800;
+#define numSampleBuffer 12
+int us[numSampleBuffer];
+int ir[numSampleBuffer];
+int t1[numSampleBuffer];
+int h1[numSampleBuffer];
+int t2[numSampleBuffer];
+int h2[numSampleBuffer];
+int b[numSampleBuffer];
 
 #define bufferSize 150
 char string2charBuffer[bufferSize];
+
+// Sleep time = sleepCounter * 8 sec
+#define sleepCounter 11
 
 
 
@@ -54,6 +58,9 @@ void setup()
   delay(500);
 
   Serial.println("Setup BEGIN");
+
+  // Initialize data storage
+  initDataStorage();
 
   // Initialize sensors
   initUltrasonic();
@@ -72,18 +79,17 @@ void loop()
   sendData();
   delay(2000);
 
-  // Sleep for 60 seconds
-
   Serial.println("Going to sleep");
-  delay(1000);
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 8s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 16s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 24s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 32s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 40s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 48s
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // 56s
-  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF); // 60s
+  delay(500);  // Allow Serial to post before sleeping
+
+  // Go to sleep
+  for ( int counter=0; counter < sleepCounter; counter++ )
+  {
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
+  // Brings to 90s after 88s
+  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+
   Serial.println("Waking up");
 }
 
@@ -93,6 +99,18 @@ void loop()
 //                            //
 //  INITIALIZATION FUNCTIONS  //
 //                            //
+void initDataStorage()
+{
+  initArray(us, 0);
+  initArray(ir, 0);
+  initArray(t1, 0);
+  initArray(h1, 0);
+  initArray(t2, 0);
+  initArray(h2, 0);
+  initArray(b, 0);
+}
+
+
 void initUltrasonic()
 {
   pinMode(samplePin, OUTPUT);
@@ -171,7 +189,7 @@ void sampleUltrasonic()
   for (int i=1; i<bigBuffer[numberSamples-1].length(); i++) {
     sendUS += bigBuffer[numberSamples-1][i];
   }
-  us = sendUS.toInt();
+  storeVal(us, sendUS.toInt());
 
   // Print results to serial
   for (byte i=0; i<numberSamples; i++)
@@ -192,10 +210,12 @@ void sampleHumidityAndTemperature()
   switch(errorCode)
   {
     case DHT_ERROR_NONE:
-      t1 = myDHT22.getTemperatureCInt();
-      h1 = myDHT22.getHumidityInt();
-      Serial.print("Temp "); Serial.print(t1); Serial.println(" /10 C");
-      Serial.print("Hum "); Serial.print(h1); Serial.println(" /10 %");
+      // t1 = myDHT22.getTemperatureCInt();
+      // h1 = myDHT22.getHumidityInt();
+      storeVal( t1, myDHT22.getTemperatureCInt() );
+      storeVal( h1 , myDHT22.getHumidityInt() );
+      Serial.print("Temp "); Serial.print(t1[numSampleBuffer-1]); Serial.println(" /10 C");
+      Serial.print("Hum "); Serial.print(h1[numSampleBuffer-1]); Serial.println(" /10 %");
       break;
     case DHT_ERROR_CHECKSUM:
       Serial.print("check sum error ");
@@ -234,7 +254,8 @@ void sampleBattery()
   Serial.print(batteryVoltage); Serial.println(" Volts");
 
   // Store value for sending to server
-  b = batteryReading;
+  // b = batteryReading;
+  storeVal( b , batteryReading );
 
   Serial.println("Battery END");
   Serial.println();
@@ -294,9 +315,9 @@ void sendData()
 
 
 
-//                            //
-//       MODEM FUNCTIONS      //
-//                            //
+//                                             //
+//               MODEM FUNCTIONS               //
+//                                             //
 void attemptSendHTTPdata()
 {
   Serial.println("attemptSendHTTPdata()");
@@ -325,29 +346,8 @@ void attemptSendHTTPdata()
   modemSerial.write("AT+HTTPINIT\r");
   findOK();
 
-  // Create HTTP GET string - OPTIMIZE, maybe with replace string?
-  String postData = "AT+HTTPPARA=\"URL\",\"http://compology.herokuapp.com/receive?id=";
-  postData += id;
-  postData += "&us=";
-  postData += us;
-  postData += "&ir=";
-  postData += ir;
-  postData += "&t1=";
-  postData += t1;
-  postData += "&h1=";
-  postData += h1;
-  postData += "&h2=";
-  postData += h2;
-  postData += "&t2=";
-  postData += t2;
-  postData += "&b=";
-  postData += b;
-  postData += "&\"\r";
-
-  postData.toCharArray(string2charBuffer, bufferSize);
-
-  modemSerial.write(string2charBuffer);
-  Serial.println(string2charBuffer);
+  // Set HTTP URL and load data into GET request
+  createAndPushHTTPgetString();
   findOK();
 
   // Set HTTP bearer
@@ -436,3 +436,100 @@ void findOK()
   if (!finder.find("OK")) Serial.println("OK not found!");
 }
 
+
+
+
+//                                             //
+//               UTILITY FUNCTIONS             //
+//                                             //
+void initArray(int* _array, int _value)
+{
+  for (int entry=0; entry < numSampleBuffer; entry++) _array[entry] = _value;
+}
+
+void storeVal(int* _array, int _value)
+{
+  for (int entry=0; entry < numSampleBuffer-1; entry++) _array[entry] = _array[entry+1];
+  _array[numSampleBuffer-1] = _value;
+}
+
+void createAndPushHTTPgetString()
+{
+    // Create HTTP GET string - OPTIMIZE, maybe with replace string?
+  String postData = "AT+HTTPPARA=\"URL\",\"http://compology.herokuapp.com/bigreceive?id=";
+  postData += id;
+  postData += "&";
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "us=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += us[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "ir=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += ir[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "t1=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += t1[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "h1=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += h1[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "t2=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += t2[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "h2=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += h2[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+
+  postData = "b=";
+  for (int sample=0; sample < numSampleBuffer; sample++)
+  {
+    postData += b[sample];
+    if (sample == numSampleBuffer-1) postData += "&";
+    else postData += "-";
+  }
+  postData += "\"\r";
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
+}
