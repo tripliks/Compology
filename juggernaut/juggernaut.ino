@@ -12,7 +12,7 @@ SoftwareSerial modemSerial(4,3);
 #define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
-#define modemSerialTimeout 15
+#define modemSerialTimeout 20
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
@@ -32,7 +32,7 @@ byte batteryPin = A0;
 
 // Data variables
 #define id 3
-#define numSampleBuffer 12
+#define numSampleBuffer 12 // Same as number of samples per send
 int us[numSampleBuffer];
 int ir[numSampleBuffer];
 int t1[numSampleBuffer];
@@ -40,12 +40,13 @@ int h1[numSampleBuffer];
 int t2[numSampleBuffer];
 int h2[numSampleBuffer];
 int b[numSampleBuffer];
+int csq;
 
-#define bufferSize 150
+#define bufferSize 100
 char string2charBuffer[bufferSize];
 
-// Sleep time = sleepCounter * 8 sec
-#define sleepCounter 11
+int numSamplesSinceLastSendData = numSampleBuffer-1; // Initialize to this value so upon first loop, it sends data
+long sendDataTimer = 0;
 
 
 
@@ -76,20 +77,21 @@ void loop()
 {
   // Run timer update routine, which runs samples after sendDataPeriod
   sample();
-  sendData();
-  delay(2000);
+  numSamplesSinceLastSendData++;
+  Serial.print("Num samples since last send "); Serial.println(numSamplesSinceLastSendData);
+  if ( numSamplesSinceLastSendData == numSampleBuffer )
+  {
+    numSamplesSinceLastSendData = 0;
+    sendData();
+  }
+  delay(1000);
 
+  // Go to sleep for 5 minutes = 300 seconds
   Serial.println("Going to sleep");
   delay(500);  // Allow Serial to post before sleeping
-
-  // Go to sleep
-  for ( int counter=0; counter < sleepCounter; counter++ )
-  {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  }
-  // Brings to 90s after 88s
-  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
-
+  for ( int counter=0; counter < 37; counter++ )  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // sleeps for 296 s
+  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);  // sleeps to 300 s
+  // Wake up
   Serial.println("Waking up");
 }
 
@@ -269,6 +271,9 @@ void sendData()
   // Switch to modem within SoftwareSerial
   modemSerial.listen();
 
+  // Start timing how long modem is on
+  long sendDataTimeStart = millis();
+
   // Check power, power up if necessary
   if ( powerUp() )
   {
@@ -307,6 +312,9 @@ void sendData()
   {
     Serial.println("Couldn't powerUp modem");
   }
+
+  // Stop stopwatch on sending data
+  sendDataTimer = millis() - sendDataTimeStart;
 
   Serial.println("Transmission END");
   Serial.println();
@@ -396,6 +404,14 @@ boolean isAttached()
   else return 0;
 }
 
+void sampleSignalStrength()
+{
+  modemSerial.write("AT+CSQ\r\n");
+  finder.find("+CSQ: ");
+  long rssi = finder.getValue();
+  findOK();
+  csq = int(rssi);
+}
 
 boolean powerUp()
 {
@@ -521,6 +537,16 @@ void createAndPushHTTPgetString()
   }
   postData.toCharArray(string2charBuffer, bufferSize);
   modemSerial.write(string2charBuffer);
+
+  // // Signal quality data
+  // postData = "q=";
+  // postData += csq;
+  // postData += "&";
+  // postData = "qt=";
+  // postData += sendDataTimer/1000;
+  // postData += "&";
+  // postData.toCharArray(string2charBuffer, bufferSize);
+  // modemSerial.write(string2charBuffer);
 
   postData = "b=";
   for (int sample=0; sample < numSampleBuffer; sample++)
