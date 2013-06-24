@@ -21,6 +21,7 @@ SoftwareSerial ultrasonic(11, 13, true); // RX, TX
 #define USnumberSamples 9
 bool levelChange_flag = false;
 #define USlevelChangeThreshold 3
+int lastUSsample = 0;
 
 // Initialize hum and temp sensor and variables
 #define DHT22_PIN 12
@@ -29,7 +30,7 @@ DHT22 myDHT22(DHT22_PIN);
 // Initialize battery
 byte batteryPin = A3;
 
-#define timeConnectTimeout 10000
+#define timeConnectTimeout 15000
 #define timeAttachTimeout 10000
 
 
@@ -145,7 +146,7 @@ void sample()
 {
   Serial.println();
   Serial.println("----------");
-  Serial.println("Enter sample loop");
+  Serial.println("Sample loop BEGIN");
   Serial.println();
 
   sampleUltrasonic();
@@ -154,7 +155,7 @@ void sample()
 
   sampleBattery();
 
-  Serial.println("Exit sample loop");
+  Serial.println("Sample loop END");
   Serial.println();
 }
 
@@ -201,7 +202,7 @@ void sampleUltrasonic()
   int USsample = float(runningTotal)/6.0;
 
   // Set levelChange_flag if huge change in level
-  if ( abs(USsample - us[numSampleBuffer-1]) > USlevelChangeThreshold )
+  if ( abs(USsample - lastUSsample) > USlevelChangeThreshold )
   {
     levelChange_flag = true;
     Serial.println("levelChange_flag TRUE");
@@ -209,6 +210,7 @@ void sampleUltrasonic()
 
   // Store in cyclic buffer
   storeVal(us, USsample);
+  lastUSsample = USsample;
 
   // Print average
   Serial.print("Average "); Serial.println(USsample);
@@ -305,6 +307,7 @@ void sendData()
 
       if (isAttached())
       {
+        sampleSignalStrength();
         // Send HTTP data, wait for 200 response
         attemptSendHTTPdata();
       }
@@ -430,6 +433,7 @@ void sampleSignalStrength()
   finder.find("+CSQ: ");
   long rssi = finder.getValue();
   findOK();
+  Serial.print("CSQ "); Serial.println(rssi);
   csq = int(rssi);
 }
 
@@ -558,15 +562,15 @@ void createAndPushHTTPgetString()
   postData.toCharArray(string2charBuffer, bufferSize);
   modemSerial.write(string2charBuffer);
 
-  // // Signal quality data
-  // postData = "q=";
-  // postData += csq;
-  // postData += "&";
-  // postData = "qt=";
-  // postData += sendDataTimer/1000;
-  // postData += "&";
-  // postData.toCharArray(string2charBuffer, bufferSize);
-  // modemSerial.write(string2charBuffer);
+  // Signal quality data
+  postData = "sq=";
+  postData += csq;
+  postData += "&";
+  postData += "tm=";
+  postData += sendDataTimer/1000;
+  postData += "&";
+  postData.toCharArray(string2charBuffer, bufferSize);
+  modemSerial.write(string2charBuffer);
 
   postData = "b=";
   for (int sample=0; sample < numSampleBuffer; sample++)
