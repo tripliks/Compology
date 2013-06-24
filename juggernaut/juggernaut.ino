@@ -35,7 +35,7 @@ byte batteryPin = A3;
 
 
 // Data variables
-#define id 3
+#define id 4
 #define numSampleBuffer 12 // Same as number of samples per send
 int us[numSampleBuffer];
 int ir[numSampleBuffer];
@@ -441,6 +441,8 @@ boolean powerUp()
 {
   Serial.println("powerUp()");
   toggleModemPower();
+
+  // for ( int i=0; i < 9; i++ ) finder.find(".");
   finder.find(".........");
   // Call Ready can take 10 seconds
   if (finder.find("Call Ready"))

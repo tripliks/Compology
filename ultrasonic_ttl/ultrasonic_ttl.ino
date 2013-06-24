@@ -27,9 +27,9 @@
  */
 #include <SoftwareSerial.h>
 
-SoftwareSerial ultrasonic(10, 11, true); // RX, TX
+SoftwareSerial ultrasonic(11, 13, true); // RX, TX
 
-byte samplePin = 9;
+byte samplePin = 10;
 
 
 void setup()  
