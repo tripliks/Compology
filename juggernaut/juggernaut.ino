@@ -18,6 +18,9 @@ TextFinder  finder(modemSerial, modemSerialTimeout);
 // Initialize ultrasonic and variables
 SoftwareSerial ultrasonic(11, 13, true); // RX, TX
 #define samplePin 10
+#define USnumberSamples 9
+bool levelChange_flag = false;
+#define USlevelChangeThreshold 3
 
 // Initialize hum and temp sensor and variables
 #define DHT22_PIN 12
@@ -42,7 +45,7 @@ int h2[numSampleBuffer];
 int b[numSampleBuffer];
 int csq;
 
-#define bufferSize 100
+#define bufferSize 75
 char string2charBuffer[bufferSize];
 
 int numSamplesSinceLastSendData = numSampleBuffer-1; // Initialize to this value so upon first loop, it sends data
@@ -61,7 +64,7 @@ void setup()
   Serial.println("Setup BEGIN");
 
   // Initialize data storage
-  initDataStorage();
+  emptyDataStorage();
 
   // Initialize sensors
   initUltrasonic();
@@ -79,9 +82,10 @@ void loop()
   sample();
   numSamplesSinceLastSendData++;
   Serial.print("Num samples since last send "); Serial.println(numSamplesSinceLastSendData);
-  if ( numSamplesSinceLastSendData == numSampleBuffer )
+  if ( numSamplesSinceLastSendData == numSampleBuffer || levelChange_flag == true )
   {
     numSamplesSinceLastSendData = 0;
+    levelChange_flag = false;
     sendData();
   }
   delay(1000);
@@ -101,15 +105,15 @@ void loop()
 //                            //
 //  INITIALIZATION FUNCTIONS  //
 //                            //
-void initDataStorage()
+void emptyDataStorage()
 {
-  initArray(us, 0);
-  initArray(ir, 0);
-  initArray(t1, 0);
-  initArray(h1, 0);
-  initArray(t2, 0);
-  initArray(h2, 0);
-  initArray(b, 0);
+  setArray(us, 0);
+  setArray(ir, 0);
+  setArray(t1, 0);
+  setArray(h1, 0);
+  setArray(t2, 0);
+  setArray(h2, 0);
+  setArray(b, 0);
 }
 
 
@@ -157,16 +161,16 @@ void sample()
 
 void sampleUltrasonic()
 {
-  Serial.println("Ultrasonic BEGIN");
+  // Serial.println("Ultrasonic BEGIN");
 
   // Switch to ultrasonic within Software Serial
   ultrasonic.listen();
 
-  byte numberSamples = 6;
-  String bigBuffer[numberSamples];  // CAN I USE SOMETHING OTHER THAN STRING?
+  int bigBuffer[USnumberSamples];
+  int runningTotal = 0;
 
   // Take numberSamples and put into bigBuffer
-  for (byte sampleNum = 0; sampleNum < numberSamples; sampleNum++)
+  for (byte sampleNum = 0; sampleNum < USnumberSamples; sampleNum++)
   {
     // Tell sensor to sample
     // Drive sample pin to HIGH for for at least 20 us, return to LOW
@@ -176,36 +180,47 @@ void sampleUltrasonic()
 
     // Read result from serial
     String smallBuffer;
+    // Serial.print("char storage ");
     while (ultrasonic.available())
     {
       char c = ultrasonic.read();
-      smallBuffer+=c;
+      // Serial.print(c);
+      smallBuffer += c;
     }
-    bigBuffer[sampleNum] = smallBuffer;
-    Serial.println("Sample");
+    // Serial.println();
+    smallBuffer.replace("R", NULL);
+    bigBuffer[sampleNum] = smallBuffer.toInt();
+    if ( sampleNum >= 3) runningTotal += bigBuffer[sampleNum];
+
+    // Print individual samples
+    // Serial.print("bigBuffer storage ");
+    Serial.println(bigBuffer[sampleNum]);
   }
 
-  // Store value for sending to server
-  // FIX THIS / MAKE IT SHORTER
-  String sendUS = "";
-  for (int i=1; i<bigBuffer[numberSamples-1].length(); i++) {
-    sendUS += bigBuffer[numberSamples-1][i];
-  }
-  storeVal(us, sendUS.toInt());
+  // Calculate average
+  int USsample = float(runningTotal)/6.0;
 
-  // Print results to serial
-  for (byte i=0; i<numberSamples; i++)
+  // Set levelChange_flag if huge change in level
+  if ( abs(USsample - us[numSampleBuffer-1]) > USlevelChangeThreshold )
   {
-    Serial.println(bigBuffer[i]);
+    levelChange_flag = true;
+    Serial.println("levelChange_flag TRUE");
   }
-  Serial.println("Ultrasonic END");
+
+  // Store in cyclic buffer
+  storeVal(us, USsample);
+
+  // Print average
+  Serial.print("Average "); Serial.println(USsample);
+
+  // Serial.println("Ultrasonic END");
   Serial.println();
 }
 
 
 void sampleHumidityAndTemperature()
 {
-  Serial.println("Hum and temp BEGIN");
+  // Serial.println("Hum and temp BEGIN");
 
   DHT22_ERROR_t errorCode;
   errorCode = myDHT22.readData();
@@ -242,14 +257,14 @@ void sampleHumidityAndTemperature()
       break;
   }
 
-  Serial.println("Hum and temp END");
+  // Serial.println("Hum and temp END");
   Serial.println();
 }
 
 
 void sampleBattery()
 {
-  Serial.println("Battery BEGIN");
+  // Serial.println("Battery BEGIN");
 
   int batteryReading = analogRead(batteryPin);
   float batteryVoltage = float(batteryReading)*10.0/1023.0 + 0.7;
@@ -259,7 +274,7 @@ void sampleBattery()
   // b = batteryReading;
   storeVal( b , batteryReading );
 
-  Serial.println("Battery END");
+  // Serial.println("Battery END");
   Serial.println();
 }
 
@@ -355,6 +370,7 @@ void attemptSendHTTPdata()
   findOK();
 
   // Set HTTP URL and load data into GET request
+  delay(500);
   createAndPushHTTPgetString();
   findOK();
 
@@ -371,6 +387,10 @@ void attemptSendHTTPdata()
   finder.find("+HTTPACTION:0,");
   long HTTPcode = finder.getValue();
   Serial.print("HTTPcode "); Serial.println(HTTPcode);
+
+  // Clear sample buffers after successful send
+  if ( HTTPcode == 200 )  emptyDataStorage();
+
   // return true;
 }
 
@@ -458,7 +478,7 @@ void findOK()
 //                                             //
 //               UTILITY FUNCTIONS             //
 //                                             //
-void initArray(int* _array, int _value)
+void setArray(int* _array, int _value)
 {
   for (int entry=0; entry < numSampleBuffer; entry++) _array[entry] = _value;
 }
