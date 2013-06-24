@@ -24,7 +24,7 @@ SoftwareSerial ultrasonic(11, 13, true); // RX, TX
 DHT22 myDHT22(DHT22_PIN);
 
 // Initialize battery
-byte batteryPin = A0;
+byte batteryPin = A3;
 
 #define timeConnectTimeout 10000
 #define timeAttachTimeout 10000
