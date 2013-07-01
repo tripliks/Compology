@@ -6,6 +6,8 @@
 
 #include <LowPower.h>
 
+// UNIT NAME
+#define id 99
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(4,3);
@@ -35,7 +37,6 @@ byte batteryPin = A3;
 
 
 // Data variables
-#define id 4
 #define numSampleBuffer 12 // Same as number of samples per send
 int us[numSampleBuffer];
 int ir[numSampleBuffer];
@@ -64,6 +65,10 @@ void setup()
 
   Serial.println("Setup BEGIN");
 
+  Serial.println();
+  Serial.print("Unit Name "); Serial.println(id);
+  Serial.println();
+
   // Initialize data storage
   emptyDataStorage();
 
@@ -74,6 +79,7 @@ void setup()
 
   delay(3000);
   Serial.println("Setup END");
+  Serial.println();
 }
 
 
@@ -195,7 +201,7 @@ void sampleUltrasonic()
 
     // Print individual samples
     // Serial.print("bigBuffer storage ");
-    Serial.println(bigBuffer[sampleNum]);
+    Serial.print("US "); Serial.println(bigBuffer[sampleNum]);
   }
 
   // Calculate average
@@ -213,7 +219,7 @@ void sampleUltrasonic()
   lastUSsample = USsample;
 
   // Print average
-  Serial.print("Average "); Serial.println(USsample);
+  Serial.print("US average "); Serial.println(USsample);
 
   // Serial.println("Ultrasonic END");
   Serial.println();
@@ -269,6 +275,7 @@ void sampleBattery()
   // Serial.println("Battery BEGIN");
 
   int batteryReading = analogRead(batteryPin);
+  Serial.print("Batt "); Serial.println(batteryReading);
   float batteryVoltage = float(batteryReading)*10.0/1023.0 + 0.7;
   Serial.print(batteryVoltage); Serial.println(" Volts");
 
@@ -442,7 +449,7 @@ boolean powerUp()
   Serial.println("powerUp()");
   toggleModemPower();
 
-  // for ( int i=0; i < 9; i++ ) finder.find(".");
+//  for ( int i=0; i < 9; i++ ) finder.find(".");
   finder.find(".........");
   // Call Ready can take 10 seconds
   if (finder.find("Call Ready"))
