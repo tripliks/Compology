@@ -5,7 +5,7 @@ SoftwareSerial modemSerial(4, 3);
 #define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
-#define modemSerialTimeout 20
+#define modemSerialTimeout 15
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 void setup()

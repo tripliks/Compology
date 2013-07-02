@@ -7,7 +7,7 @@
 #include <LowPower.h>
 
 // UNIT NAME
-#define id 99
+#define id 7
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(4,3);
@@ -32,8 +32,10 @@ DHT22 myDHT22(DHT22_PIN);
 // Initialize battery
 byte batteryPin = A3;
 
+
+// Connection timeouts for the first connection
 #define timeConnectTimeout 15000
-#define timeAttachTimeout 10000
+#define timeAttachTimeout 15000
 
 
 // Data variables
@@ -77,7 +79,7 @@ void setup()
   initHumidityAndTemperature();
   initBattery();
 
-  delay(3000);
+  delay(2000);
   Serial.println("Setup END");
   Serial.println();
 }
@@ -98,12 +100,12 @@ void loop()
   delay(1000);
 
   // Go to sleep for 5 minutes = 300 seconds
-  Serial.println("Going to sleep");
+  Serial.println("Sleeping");
   delay(500);  // Allow Serial to post before sleeping
   for ( int counter=0; counter < 37; counter++ )  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // sleeps for 296 s
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);  // sleeps to 300 s
   // Wake up
-  Serial.println("Waking up");
+  Serial.println("Waking");
 }
 
 
@@ -152,7 +154,7 @@ void sample()
 {
   Serial.println();
   Serial.println("----------");
-  Serial.println("Sample loop BEGIN");
+  Serial.println("Sample BEGIN");
   Serial.println();
 
   sampleUltrasonic();
@@ -161,7 +163,7 @@ void sample()
 
   sampleBattery();
 
-  Serial.println("Sample loop END");
+  Serial.println("Sample END");
   Serial.println();
 }
 
@@ -211,7 +213,7 @@ void sampleUltrasonic()
   if ( abs(USsample - lastUSsample) > USlevelChangeThreshold )
   {
     levelChange_flag = true;
-    Serial.println("levelChange_flag TRUE");
+    Serial.println("Level change!");
   }
 
   // Store in cyclic buffer
@@ -219,7 +221,7 @@ void sampleUltrasonic()
   lastUSsample = USsample;
 
   // Print average
-  Serial.print("US average "); Serial.println(USsample);
+  Serial.print("US avg "); Serial.println(USsample);
 
   // Serial.println("Ultrasonic END");
   Serial.println();
@@ -276,7 +278,7 @@ void sampleBattery()
 
   int batteryReading = analogRead(batteryPin);
   Serial.print("Batt "); Serial.println(batteryReading);
-  float batteryVoltage = float(batteryReading)*10.0/1023.0 + 0.7;
+  float batteryVoltage = float(batteryReading)*10.0/1023.0;
   Serial.print(batteryVoltage); Serial.println(" Volts");
 
   // Store value for sending to server
@@ -399,7 +401,11 @@ void attemptSendHTTPdata()
   Serial.print("HTTPcode "); Serial.println(HTTPcode);
 
   // Clear sample buffers after successful send
-  if ( HTTPcode == 200 )  emptyDataStorage();
+  if ( HTTPcode == 200 )
+  {
+    emptyDataStorage();
+    numSamplesSinceLastSendData = 0;
+  }
 
   // return true;
 }
@@ -407,7 +413,7 @@ void attemptSendHTTPdata()
 
 boolean isConnected()
 {
-  Serial.println("isConnected()");
+  Serial.println(); Serial.println("isConnected()");
   modemSerial.write("AT+CREG?\r\n");
 
   finder.find("+CREG: ");  // Set CREG=1 to return unsolicited network registration code
@@ -417,6 +423,9 @@ boolean isConnected()
 
   // Make sure it didn't time out
   findOK();
+
+  // Test and display signal strength while trying to connect
+  // sampleSignalStrength();
 
   if (response==1) return true;
   else return false;
@@ -449,13 +458,16 @@ boolean powerUp()
   Serial.println("powerUp()");
   toggleModemPower();
 
-//  for ( int i=0; i < 9; i++ ) finder.find(".");
-  finder.find(".........");
+  finder.find("\r\n");
+  finder.find("\r\n");
+  // for ( int i=0; i < 9; i++ ) finder.find("."); // Units 1.6, 1.10
+  // for ( int i=0; i < 1; i++ ) finder.find("."); // Units 1.2, 1.3, 1.7, 1.8
+
   // Call Ready can take 10 seconds
   if (finder.find("Call Ready"))
   {
     // Successfully turned on
-    Serial.println("Modem on and responsive");
+    Serial.println("Modem responsive");
     return true;
   }
   else
@@ -475,7 +487,7 @@ void powerDown()
 void toggleModemPower()
 {
   digitalWrite(powerPin,HIGH);
-  delay(1500);
+  delay(2000);
   digitalWrite(powerPin,LOW);
 }
 
