@@ -60,26 +60,6 @@ void loop()
   
   findOK();
 
-  // postData += "&us=";
-  // postData += us;
-  // postData += "&ir=";
-  // postData += ir;
-  // postData += "&t1=";
-  // postData += t1;
-  // postData += "&h1=";
-  // postData += h1;
-  // postData += "&h2=";
-  // postData += h2;
-  // postData += "&t2=";
-  // postData += t2;
-  // postData += "&b=";
-  // postData += b;
-  // postData += "&\"\r";
-
-  // postData.toCharArray(string2charBuffer, bufferSize);
-
-  // modemSerial.write(string2charBuffer);
-  // Serial.println(string2charBuffer);
 
   Serial.println("END loop");
 }

@@ -7,7 +7,7 @@
 #include <LowPower.h>
 
 // UNIT NAME
-#define id 7
+#define id 10
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(4,3);
@@ -65,7 +65,7 @@ void setup()
   Serial.begin(19200);
   delay(500);
 
-  Serial.println("Setup BEGIN");
+  // Serial.println("Setup BEGIN");
 
   Serial.println();
   Serial.print("Unit Name "); Serial.println(id);
@@ -80,7 +80,7 @@ void setup()
   initBattery();
 
   delay(2000);
-  Serial.println("Setup END");
+  // Serial.println("Setup END");
   Serial.println();
 }
 
@@ -90,7 +90,7 @@ void loop()
   // Run timer update routine, which runs samples after sendDataPeriod
   sample();
   numSamplesSinceLastSendData++;
-  Serial.print("Num samples since last send "); Serial.println(numSamplesSinceLastSendData);
+  Serial.print("Samples "); Serial.println(numSamplesSinceLastSendData);
   if ( numSamplesSinceLastSendData == numSampleBuffer || levelChange_flag == true )
   {
     numSamplesSinceLastSendData = 0;
@@ -100,12 +100,12 @@ void loop()
   delay(1000);
 
   // Go to sleep for 5 minutes = 300 seconds
-  Serial.println("Sleeping");
+  Serial.println("Sleep");
   delay(500);  // Allow Serial to post before sleeping
-  for ( int counter=0; counter < 37; counter++ )  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); // sleeps for 296 s
+  for ( int counter=0; counter < 37; counter++ ) { LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); }// sleeps for 296 s
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);  // sleeps to 300 s
   // Wake up
-  Serial.println("Waking");
+  Serial.println("Wake");
 }
 
 
@@ -153,7 +153,7 @@ void initBattery()
 void sample()
 {
   Serial.println();
-  Serial.println("----------");
+  Serial.println("-----");
   Serial.println("Sample BEGIN");
   Serial.println();
 
@@ -292,7 +292,7 @@ void sampleBattery()
 
 void sendData()
 {
-  Serial.println("Transmission BEGIN");
+  Serial.println("Transmit BEGIN");
 
   // Switch to modem within SoftwareSerial
   modemSerial.listen();
@@ -329,7 +329,7 @@ void sendData()
     }
     else  // Didn't connect
     {
-      Serial.println("Couldn't connect");
+      Serial.println("Can't connect");
     }
 
     // Power down modem
@@ -343,7 +343,7 @@ void sendData()
   // Stop stopwatch on sending data
   sendDataTimer = millis() - sendDataTimeStart;
 
-  Serial.println("Transmission END");
+  Serial.println("Transmit END");
   Serial.println();
 }
 
@@ -355,7 +355,7 @@ void sendData()
 //                                             //
 void attemptSendHTTPdata()
 {
-  Serial.println("attemptSendHTTPdata()");
+  Serial.println("Send HTTP");
 
   // Check bearer
   modemSerial.write("AT+SAPBR=2,1\r");
@@ -373,7 +373,7 @@ void attemptSendHTTPdata()
   else if ( bearerStatus == 1 ) {}
   else
   {
-    Serial.println("Weird bearer status, breaking send attempt");
+    Serial.println("Weird bearer, break");
     return;
   }
 
@@ -413,7 +413,7 @@ void attemptSendHTTPdata()
 
 boolean isConnected()
 {
-  Serial.println(); Serial.println("isConnected()");
+  // Serial.println(); Serial.println("isConnected()");
   modemSerial.write("AT+CREG?\r\n");
 
   finder.find("+CREG: ");  // Set CREG=1 to return unsolicited network registration code
@@ -458,8 +458,13 @@ boolean powerUp()
   Serial.println("powerUp()");
   toggleModemPower();
 
-  finder.find("\r\n");
-  finder.find("\r\n");
+  finder.find("\r\n"); // First return
+
+  // char debugByte = 255; // FF
+  while ( finder.find("\r\n") == false ) {}
+  // Serial.println("nulls skipped");
+
+  finder.find("\r\n"); // Last return
   // for ( int i=0; i < 9; i++ ) finder.find("."); // Units 1.6, 1.10
   // for ( int i=0; i < 1; i++ ) finder.find("."); // Units 1.2, 1.3, 1.7, 1.8
 
@@ -467,12 +472,12 @@ boolean powerUp()
   if (finder.find("Call Ready"))
   {
     // Successfully turned on
-    Serial.println("Modem responsive");
+    Serial.println("Modem responded");
     return true;
   }
   else
   {
-    Serial.println("No response from modem");
+    Serial.println("No modem response");
     return false;
   }
 }
