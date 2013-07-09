@@ -6,7 +6,8 @@
  
 #include <SoftwareSerial.h>
  
-SoftwareSerial GPRS(4, 3);
+//SoftwareSerial GPRS(4, 3);
+SoftwareSerial GPRS(7, 8);
 
 
 void setup()

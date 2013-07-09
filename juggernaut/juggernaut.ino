@@ -7,14 +7,14 @@
 #include <LowPower.h>
 
 // UNIT NAME
-#define id 10
+#define id 4
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(4,3);
 #define powerPin 2
 
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
-#define modemSerialTimeout 20
+#define modemSerialTimeout 35
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
 // Initialize ultrasonic and variables
