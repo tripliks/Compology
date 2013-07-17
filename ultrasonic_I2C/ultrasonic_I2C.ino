@@ -71,7 +71,7 @@ char string2charBuffer[200];
   postData += "&b=";
   postData += b;
   postData += "&\"\r";
-  Serial.println(postDat);
+  Serial.println(postData);
 
   // Store value for sending to server
 //  us = int(bigBuffer[numberSamples-1]);

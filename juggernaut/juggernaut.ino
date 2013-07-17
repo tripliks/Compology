@@ -1,33 +1,51 @@
 #include <DHT22.h>
 #include <stdio.h>
-
 #include <SoftwareSerial.h>
 #include <TextFinder.h>
-
 #include <LowPower.h>
+
+
 
 // UNIT NAME
 #define id 4
+
+// Which ultrasonic sensor?  TTL or I2C?  UNCOMMENT NEXT 2 LINES FOR AN I2C SENSOR
+#define I2Cultrasonic_flag
+#include <Wire.h>
+
+
 
 // Initialize comm to GSM shield
 SoftwareSerial modemSerial(4,3);
 #define powerPin 2
 
+
 // Feed TextFinder the stream, modemSerialTimeout (seconds) timeout for searches
 #define modemSerialTimeout 35
 TextFinder  finder(modemSerial, modemSerialTimeout); 
 
+
 // Initialize ultrasonic and variables
-SoftwareSerial ultrasonic(11, 13, true); // RX, TX
-#define samplePin 10
+#ifndef I2Cultrasonic_flag
+  SoftwareSerial ultrasonic(11, 13, true); // RX, TX
+  #define samplePin 10
+#endif
+
+#define SensorAddress byte(0x70)
+#define RangeCommand byte(0x51)
+#define ChangeAddressCommand1 byte(0xAA)
+#define ChangeAddressCommand2 byte(0xA5)
+
 #define USnumberSamples 9
 bool levelChange_flag = false;
 #define USlevelChangeThreshold 3
 int lastUSsample = 0;
 
+
 // Initialize hum and temp sensor and variables
 #define DHT22_PIN 12
 DHT22 myDHT22(DHT22_PIN);
+
 
 // Initialize battery
 byte batteryPin = A3;
@@ -128,9 +146,16 @@ void emptyDataStorage()
 
 void initUltrasonic()
 {
-  pinMode(samplePin, OUTPUT);
-  digitalWrite(samplePin, LOW);
-  ultrasonic.begin(9600);
+  #ifndef I2Cultrasonic_flag
+    pinMode(samplePin, OUTPUT);
+    digitalWrite(samplePin, LOW);
+    ultrasonic.begin(9600);
+  #endif
+
+  #ifdef I2Cultrasonic_flag
+    Wire.begin();
+  #endif
+
   delay(100);
 }
 
@@ -172,8 +197,10 @@ void sampleUltrasonic()
 {
   // Serial.println("Ultrasonic BEGIN");
 
-  // Switch to ultrasonic within Software Serial
-  ultrasonic.listen();
+  #ifndef I2Cultrasonic_flag
+    // Switch to ultrasonic within Software Serial
+    ultrasonic.listen();
+  #endif
 
   int bigBuffer[USnumberSamples];
   int runningTotal = 0;
@@ -181,29 +208,43 @@ void sampleUltrasonic()
   // Take numberSamples and put into bigBuffer
   for (byte sampleNum = 0; sampleNum < USnumberSamples; sampleNum++)
   {
-    // Tell sensor to sample
-    // Drive sample pin to HIGH for for at least 20 us, return to LOW
-    digitalWrite(samplePin, HIGH);
-    delay(150);
-    digitalWrite(samplePin, LOW);
 
-    // Read result from serial
-    String smallBuffer;
-    // Serial.print("char storage ");
-    while (ultrasonic.available())
-    {
-      char c = ultrasonic.read();
-      // Serial.print(c);
-      smallBuffer += c;
-    }
-    // Serial.println();
-    smallBuffer.replace("R", NULL);
-    bigBuffer[sampleNum] = smallBuffer.toInt();
+    // Tell sensor to sample and record reading in bigBuffer
+
+    #ifndef I2Cultrasonic_flag
+      // Drive sample pin to HIGH for for at least 20 us, return to LOW
+      digitalWrite(samplePin, HIGH);
+      delay(150);
+      digitalWrite(samplePin, LOW);
+
+      // Read result from serial
+      String smallBuffer;
+      // Serial.print("char storage ");
+      while (ultrasonic.available())
+      {
+        char c = ultrasonic.read();
+        // Serial.print(c);
+        smallBuffer += c;
+      }
+      // Serial.println();
+      smallBuffer.replace("R", NULL);
+      bigBuffer[sampleNum] = smallBuffer.toInt();
+    #endif
+
+    #ifdef I2Cultrasonic_flag
+      takeRangeReading();                                       //Tell the sensor to perform a ranging cycle
+      delay(100);                                                    //Wait for the sensor to finish
+      bigBuffer[sampleNum] = requestRange();
+    #endif
+
+
+    // Ignore 3 samples, but keep running total of next 6 for the average
     if ( sampleNum >= 3) runningTotal += bigBuffer[sampleNum];
 
+
     // Print individual samples
-    // Serial.print("bigBuffer storage ");
     Serial.print("US "); Serial.println(bigBuffer[sampleNum]);
+
   }
 
   // Calculate average
@@ -501,6 +542,35 @@ void findOK()
 {
   if (!finder.find("OK")) Serial.println("OK not found!");
 }
+
+
+
+//                                             //
+//           ULTRASONIC FUNCTIONS              //
+//                                             //
+
+#ifdef I2Cultrasonic_flag
+  //Commands the sensor to take a range reading
+  void takeRangeReading(){
+         Wire.beginTransmission(SensorAddress);             //Start addressing 
+         Wire.write(RangeCommand);                             //send range command 
+         Wire.endTransmission();                                  //Stop and do something else now
+  }    
+
+  //Returns the last range that the sensor determined in its last ranging cycle in centimeters. Returns 0 if there is no communication. 
+  word requestRange(){ 
+      Wire.requestFrom(SensorAddress, byte(2));
+              if(Wire.available() >= 2){                            //Sensor responded with the two bytes 
+             byte HighByte = Wire.read();                        //Read the high byte back 
+             byte LowByte = Wire.read();                        //Read the low byte back 
+             word range = word(HighByte, LowByte);         //Make a 16-bit word out of the two bytes for the range 
+             return range; 
+          }
+          else { 
+          return word(0);                                             //Else nothing was received, return 0 
+      }
+  }
+#endif
 
 
 
